@@ -13,8 +13,12 @@ CAMERA_SMOOTH = 0.14
 CAMERA_DEADZONE_X = 140
 CAMERA_DEADZONE_Y = 90
 
-BASE_PATH = "Zalupa_game_Texture/hero"
-MAP_PATH = "Zalupa_game_Texture/Location/Cave.tmx"
+PROJECT_ROOT = Path(__file__).resolve().parent
+TEXTURE_ROOT = PROJECT_ROOT / "my_game_Texture"
+if not TEXTURE_ROOT.exists():
+    TEXTURE_ROOT = PROJECT_ROOT / "Zalupa_game_Texture"
+BASE_PATH = TEXTURE_ROOT / "hero"
+MAP_PATH = TEXTURE_ROOT / "Location/Cave.tmx"
 DEFAULT_MAP_LAYER_OPTIONS = {
     "Flors": {"use_spatial_hash": True},
     "Stop": {"use_spatial_hash": True},
@@ -47,16 +51,16 @@ class Cherecters(arcade.Sprite):
 
     def _setup_animations(self):
         self.animations = {
-            "forward": [f"{BASE_PATH}/forward/{i}.png" for i in range(1, 5)],
-            "back": [f"{BASE_PATH}/back/{i}.png" for i in range(1, 5)],
-            "right": [f"{BASE_PATH}/right/{i}.png" for i in range(1, 5)],
-            "no_move_forward": [f"{BASE_PATH}/no_move_forward/{i}.png" for i in range(1, 5)],
-            "no_move_back": [f"{BASE_PATH}/no_move_back/{i}.png" for i in range(1, 5)],
-            "no_move_right": [f"{BASE_PATH}/no_move_right/{i}.png" for i in range(1, 5)],
-            "with_gun_forward": [f"{BASE_PATH}/with_gun_forward/{i}.png" for i in range(1, 5)],
-            "with_gun_back": [f"{BASE_PATH}/with_gun_back/{i}.png" for i in range(1, 5)],
-            "with_gun_right": [f"{BASE_PATH}/with_gun_right/{i}.png" for i in range(1, 5)],
-            "with_gun_left": [f"{BASE_PATH}/with_gun_left/{i}.png" for i in range(1, 5)],
+            "forward": [str(BASE_PATH / "forward" / f"{i}.png") for i in range(1, 5)],
+            "back": [str(BASE_PATH / "back" / f"{i}.png") for i in range(1, 5)],
+            "right": [str(BASE_PATH / "right" / f"{i}.png") for i in range(1, 5)],
+            "no_move_forward": [str(BASE_PATH / "no_move_forward" / f"{i}.png") for i in range(1, 5)],
+            "no_move_back": [str(BASE_PATH / "no_move_back" / f"{i}.png") for i in range(1, 5)],
+            "no_move_right": [str(BASE_PATH / "no_move_right" / f"{i}.png") for i in range(1, 5)],
+            "with_gun_forward": [str(BASE_PATH / "with_gun_forward" / f"{i}.png") for i in range(1, 5)],
+            "with_gun_back": [str(BASE_PATH / "with_gun_back" / f"{i}.png") for i in range(1, 5)],
+            "with_gun_right": [str(BASE_PATH / "with_gun_right" / f"{i}.png") for i in range(1, 5)],
+            "with_gun_left": [str(BASE_PATH / "with_gun_left" / f"{i}.png") for i in range(1, 5)],
         }
         self.texture = arcade.load_texture(self.animations["no_move_forward"][0])
         self.scale = self.texture_scale
@@ -216,6 +220,8 @@ def main():
     )
     args = parser.parse_args()
     map_path = Path(args.map)
+    if not map_path.is_absolute():
+        map_path = PROJECT_ROOT / map_path
     if not map_path.exists():
         raise FileNotFoundError(f"Не найден файл карты: {map_path}")
 
