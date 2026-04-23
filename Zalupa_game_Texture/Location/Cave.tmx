@@ -1,22 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="60" height="40" tilewidth="32" tileheight="32" infinite="0" nextlayerid="4" nextobjectid="1">
- <tileset firstgid="1" name="камень" tilewidth="32" tileheight="32" tilecount="4" columns="2">
-  <image source="../../../Pictures/Pixel Studio/Пещера.png/0.png" width="64" height="64"/>
- </tileset>
- <tileset firstgid="5" name="ров" tilewidth="32" tileheight="32" tilecount="256" columns="16">
-  <image source="../../../Pictures/Pixel Studio/ров.png" width="512" height="512"/>
-  <tile id="54">
-   <objectgroup draworder="index" id="3">
-    <object id="12" x="-0.375" y="0.125" width="32" height="32"/>
-   </objectgroup>
-  </tile>
- </tileset>
- <tileset firstgid="261" name="gun" tilewidth="32" tileheight="32" tilecount="16" columns="4">
-  <image source="../../../Pictures/Pixel Studio/gun.png" width="128" height="128"/>
- </tileset>
- <tileset firstgid="277" name="Дерево" tilewidth="32" tileheight="32" tilecount="4" columns="2">
-  <image source="../../../Pictures/Pixel Studio/Библиотека.png/0.png" width="64" height="64"/>
- </tileset>
+<tileset firstgid="1" source="камень.tsx"/>
+ <tileset firstgid="5" source="ров.tsx"/>
+<tileset firstgid="261" source="gun.tsx"/>
+ <tileset firstgid="277" source="Дерево.tsx"/>
  <layer id="1" name="Flors" width="60" height="40">
   <data encoding="csv">
 1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,

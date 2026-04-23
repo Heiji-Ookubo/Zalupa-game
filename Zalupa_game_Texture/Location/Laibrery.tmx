@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" tiledversion="1.12.1" orientation="orthogonal" renderorder="right-down" width="60" height="40" tilewidth="32" tileheight="32" infinite="0" nextlayerid="3" nextobjectid="1">
  <tileset firstgid="1" name="Книги" tilewidth="32" tileheight="32" tilecount="4" columns="2">
-  <image source="../../../Pictures/Pixel Studio/Библиотека.png/1.png" width="64" height="64"/>
+  <image source="Tail/Библиотека.png/1.png" width="64" height="64"/>
  </tileset>
  <tileset firstgid="5" name="Лестница" tilewidth="32" tileheight="32" tilecount="4" columns="2">
-  <image source="../../../Pictures/Pixel Studio/Библиотека.png/3.png" width="64" height="64"/>
+  <image source="Tail/Библиотека.png/3.png" width="64" height="64"/>
  </tileset>
  <tileset firstgid="9" name="кольца" tilewidth="32" tileheight="32" tilecount="4" columns="2">
-  <image source="../../../Pictures/Pixel Studio/Библиотека.png/2.png" width="64" height="64"/>
+  <image source="Tail/Библиотека.png/2.png" width="64" height="64"/>
  </tileset>
  <tileset firstgid="13" name="Дерево" tilewidth="32" tileheight="32" tilecount="4" columns="2">
-  <image source="../../../Pictures/Pixel Studio/Библиотека.png/0.png" width="64" height="64"/>
+  <image source="Tail/Библиотека.png/0.png" width="64" height="64"/>
  </tileset>
  <layer id="2" name="Flors" width="60" height="40">
   <data encoding="csv">
