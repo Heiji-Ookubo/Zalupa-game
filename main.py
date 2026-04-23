@@ -3,7 +3,7 @@ from PIL import ImageOps
 
 SCREEN_WIDTH = 1800
 SCREEN_HEIGHT = 980
-MOVEMENT_SPEED = 3
+MOVEMENT_SPEED = 10
 
 BASE_PATH = "Zalupa_game_Texture/hero"
 
