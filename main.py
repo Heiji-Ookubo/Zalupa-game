@@ -341,14 +341,6 @@ class Enemy(Cherecters):
 class MyGame(arcade.Window):
     def __init__(self, width, height, title, map_path: str):
         super().__init__(width, height, title)
-        layer_options = load_layer_options_from_tmx(map_path)
-        self.map = arcade.load_tilemap(map_path, TILE_SCALING, layer_options)
-        self.scene = arcade.Scene.from_tilemap(self.map)
-        self.wall_list = self.map.sprite_lists.get("Stop", arcade.SpriteList())
-        self.gun_list = self.map.sprite_lists.get("gun", arcade.SpriteList())
-        self.gun_picked_up = False
-        self.map_pixel_width = self.map.width * self.map.tile_width * TILE_SCALING
-        self.map_pixel_height = self.map.height * self.map.tile_height * TILE_SCALING
         self.bullet_list = arcade.SpriteList()
         self.shoot_timer = 0
         self.camera = arcade.Camera2D(position=(width / 2, height / 2))
@@ -357,8 +349,26 @@ class MyGame(arcade.Window):
         self.player_list = arcade.SpriteList()
         self.player_list.append(self.hero)
         self.enemies = arcade.SpriteList()
-        self.physics_engine = arcade.PhysicsEngineSimple(self.hero, self.wall_list)
         self.map_path = map_path
+        self._setup_level(map_path)
+
+    def _setup_level(self, map_path: str, spawn_x: Optional[float] = None, spawn_y: Optional[float] = None):
+        self.map_path = map_path
+        layer_options = load_layer_options_from_tmx(map_path)
+        self.map = arcade.load_tilemap(map_path, TILE_SCALING, layer_options)
+        self.scene = arcade.Scene.from_tilemap(self.map)
+        self.wall_list = self.map.sprite_lists.get("Stop", arcade.SpriteList())
+        self.gun_list = self.map.sprite_lists.get("gun", arcade.SpriteList())
+        self.map_pixel_width = self.map.width * self.map.tile_width * TILE_SCALING
+        self.map_pixel_height = self.map.height * self.map.tile_height * TILE_SCALING
+        self.physics_engine = arcade.PhysicsEngineSimple(self.hero, self.wall_list)
+        self.hero.change_x = 0
+        self.hero.change_y = 0
+        self.gun_picked_up = False
+        if spawn_x is not None:
+            self.hero.center_x = spawn_x
+        if spawn_y is not None:
+            self.hero.center_y = spawn_y
 
     def center_camera_to_player(self):
         half_w = self.width / 2
@@ -413,21 +423,6 @@ class MyGame(arcade.Window):
         self.hero.center_x = self.map_pixel_width / 2
         self.hero.center_y = self.map_pixel_height / 2
         self.camera.position = (self.hero.center_x, self.hero.center_y)
-
-    def load_level(self, map_path: str, spawn_x: Optional[float] = None, spawn_y: Optional[float] = None):
-        self.map_path = map_path
-        layer_options = load_layer_options_from_tmx(map_path)
-        self.map = arcade.load_tilemap(map_path, TILE_SCALING, layer_options)
-        self.scene = arcade.Scene.from_tilemap(self.map)
-        self.wall_list = self.map.sprite_lists.get("Stop", arcade.SpriteList())
-        self.gun_list = self.map.sprite_lists.get("gun", arcade.SpriteList())
-        self.map_pixel_width = self.map.width * self.map.tile_width * TILE_SCALING
-        self.map_pixel_height = self.map.height * self.map.tile_height * TILE_SCALING
-        self.physics_engine = arcade.PhysicsEngineSimple(self.hero, self.wall_list)
-        self.hero.center_x = spawn_x if spawn_x is not None else self.map_pixel_width / 2
-        self.hero.center_y = spawn_y if spawn_y is not None else self.map_pixel_height / 2
-        self.hero.change_x = 0
-        self.hero.change_y = 0
 
     def on_update(self, delta_time):
         if self.shoot_timer > 0:
@@ -486,10 +481,11 @@ class MyGame(arcade.Window):
             wh = max(wall.height * scale_y, 1)
             arcade.draw_lbwh_rectangle_filled(wx, wy, ww, wh, (100, 100, 100, 150))
 
-        for gun in self.gun_list:
-            gx = minimap_x + gun.center_x * scale_x
-            gy = minimap_y + gun.center_y * scale_y
-            arcade.draw_circle_filled(gx, gy, 5, (255, 255, 0))
+        if not self.hero.has_gun and not self.gun_picked_up:
+            for gun in self.gun_list:
+                gx = minimap_x + gun.center_x * scale_x
+                gy = minimap_y + gun.center_y * scale_y
+                arcade.draw_circle_filled(gx, gy, 5, (255, 255, 0))
 
         hx = minimap_x + self.hero.center_x * scale_x
         hy = minimap_y + self.hero.center_y * scale_y
@@ -514,35 +510,27 @@ class MyGame(arcade.Window):
             return
 
         transition = connections.get(direction)
-        if transition:
-            next_map = transition["map"]
-            spawn_x = transition.get("spawn_x")
-            spawn_y = transition.get("spawn_y")
-            if spawn_x == "left_edge":
-                spawn_x = 100
-            elif spawn_x == "right_edge":
-                spawn_x = self.map_pixel_width - 100
-            elif spawn_x is None:
-                spawn_x = self.map_pixel_width / 2
-            if spawn_y is None:
-                spawn_y = self.map_pixel_height / 2
-            self.map_path = next_map
-            self.hero.center_x = spawn_x
-            self.hero.center_y = spawn_y
-            self._load_map(next_map)
+        if not transition:
+            return
 
-    def _load_map(self, map_path: str):
-        layer_options = load_layer_options_from_tmx(map_path)
-        self.map = arcade.load_tilemap(map_path, TILE_SCALING, layer_options)
-        self.scene = arcade.Scene.from_tilemap(self.map)
-        self.wall_list = self.map.sprite_lists.get("Stop", arcade.SpriteList())
-        self.gun_list = self.map.sprite_lists.get("gun", arcade.SpriteList())
-        self.map_pixel_width = self.map.width * self.map.tile_width * TILE_SCALING
-        self.map_pixel_height = self.map.height * self.map.tile_height * TILE_SCALING
-        self.physics_engine = arcade.PhysicsEngineSimple(self.hero, self.wall_list)
-        self.hero.change_x = 0
-        self.hero.change_y = 0
-        self.gun_picked_up = False
+        next_map = transition["map"]
+        spawn_x = transition.get("spawn_x")
+        spawn_y = transition.get("spawn_y")
+
+        self._load_map(next_map)
+
+        if spawn_x == "left_edge":
+            self.hero.center_x = 100
+        elif spawn_x == "right_edge":
+            self.hero.center_x = self.map_pixel_width - 100
+        elif spawn_x is None:
+            self.hero.center_x = self.map_pixel_width / 2
+
+        if spawn_y is None:
+            self.hero.center_y = self.map_pixel_height / 2
+
+    def _load_map(self, map_path: str, spawn_x: Optional[float] = None, spawn_y: Optional[float] = None):
+        self._setup_level(map_path, spawn_x, spawn_y)
 
     def on_key_press(self, symbol, modifiers):
         if symbol == arcade.key.A:
@@ -573,9 +561,12 @@ class MyGame(arcade.Window):
     def on_draw(self):
         self.clear()
         self.camera.use()
-        self.scene.draw()
 
-        if not self.gun_picked_up and self.gun_list:
+        for name in list(self.scene._name_mapping.keys()):
+            if name != "gun":
+                self.scene._name_mapping[name].draw()
+
+        if not self.hero.has_gun and not self.gun_picked_up and self.gun_list:
             self.gun_list.draw()
 
         self.player_list.draw()
