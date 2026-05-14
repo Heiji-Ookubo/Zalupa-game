@@ -3,6 +3,7 @@ from PIL import ImageOps
 from pathlib import Path
 import argparse
 import xml.etree.ElementTree as ET
+import math
 
 SCREEN_WIDTH, SCREEN_HEIGHT = arcade.get_display_size()
 MOVEMENT_SPEED = 5
@@ -13,16 +14,73 @@ CAMERA_SMOOTH = 0.14
 CAMERA_DEADZONE_X = 140
 CAMERA_DEADZONE_Y = 90
 
+BULLET_SPEED = 20
+SHOOT_DELAY = 0.3
+BULLET_SCALE = 7
+
 PROJECT_ROOT = Path(__file__).resolve().parent
 TEXTURE_ROOT = PROJECT_ROOT / "my_game_Texture"
 if not TEXTURE_ROOT.exists():
-    TEXTURE_ROOT = PROJECT_ROOT / "Zalupa_game_Texture"
+    TEXTURE_ROOT = PROJECT_ROOT / "Valina_game_Texture"
 BASE_PATH = TEXTURE_ROOT / "hero"
 MAP_PATH = TEXTURE_ROOT / "Location/Cave.tmx"
 DEFAULT_MAP_LAYER_OPTIONS = {
     "Flors": {"use_spatial_hash": True},
     "Stop": {"use_spatial_hash": True},
 }
+
+
+class Bullet(arcade.Sprite):
+    def __init__(self, x, y, direction_x, direction_y):
+        super().__init__()
+        self.center_x = x
+        self.center_y = y
+        self.change_x = direction_x * BULLET_SPEED
+        self.change_y = direction_y * BULLET_SPEED
+        self.current_frame = 0
+        self.frame_timer = 0
+        self.frame_duration = 0.08
+        self.scale = BULLET_SCALE
+        self.lifetime = 0
+        self.load_bullet_animation()
+
+    def load_bullet_animation(self):
+        """Загрузка анимации пули из папки героя"""
+        try:
+            bullet_frames = []
+            bullet_path = BASE_PATH / "bullet"
+            if bullet_path.exists():
+                for i in range(1, 5):
+                    frame_path = bullet_path / f"{i}.png"
+                    if frame_path.exists():
+                        frame = arcade.load_texture(str(frame_path))
+                        bullet_frames.append(frame)
+                if bullet_frames:
+                    self.texture = bullet_frames[0]
+                    self.frames = bullet_frames
+                    return
+        except:
+            pass
+        self.texture = arcade.make_circle_texture(8, (255, 255, 0))
+        self.frames = [self.texture]
+
+    def update_animation(self, delta_time):
+        """Обновление анимации пули"""
+        if hasattr(self, 'frames') and len(self.frames) > 1:
+            self.frame_timer += delta_time
+            if self.frame_timer >= self.frame_duration:
+                self.frame_timer = 0
+                self.current_frame = (self.current_frame + 1) % len(self.frames)
+                self.texture = self.frames[self.current_frame]
+
+    def update(self, delta_time):
+        self.center_x += self.change_x
+        self.center_y += self.change_y
+        self.lifetime += delta_time
+        self.update_animation(delta_time)
+
+        if self.lifetime > 1.2:
+            self.remove_from_sprite_lists()
 
 
 def load_layer_options_from_tmx(map_path: str) -> dict[str, dict[str, bool]]:
@@ -141,6 +199,9 @@ class MyGame(arcade.Window):
         self.physics_engine = arcade.PhysicsEngineSimple(self.hero, self.wall_list)
         self.map_pixel_width = self.map.width * self.map.tile_width * TILE_SCALING
         self.map_pixel_height = self.map.height * self.map.tile_height * TILE_SCALING
+        self.bullet_list = arcade.SpriteList()
+        self.shoot_timer = 0
+        self.gun_picked_up = False
 
     def center_camera_to_player(self):
         half_w = self.width / 2
@@ -153,8 +214,6 @@ class MyGame(arcade.Window):
         dx = self.hero.center_x - cam_x
         dy = self.hero.center_y - cam_y
 
-        # Enter the Gungeon-style follow: camera starts moving only
-        # when player exits a small central dead zone.
         target_x = cam_x
         target_y = cam_y
         if abs(dx) > CAMERA_DEADZONE_X:
@@ -170,21 +229,59 @@ class MyGame(arcade.Window):
             cam_y + (target_y - cam_y) * CAMERA_SMOOTH,
         )
 
+    def shoot(self):
+        """Метод для стрельбы"""
+        if not self.hero.has_gun or self.shoot_timer > 0:
+            return
+
+        dx = 0
+        dy = 0
+
+        facing = self.hero.facing_direction
+
+        if facing.startswith("no_move_"):
+            facing = facing.replace("no_move_", "")
+
+        if facing == "right":
+            dx = 1
+        elif facing == "left":
+            dx = -1
+        elif facing == "forward":
+            dy = 1
+        elif facing == "back":
+            dy = -1
+
+        bullet = Bullet(self.hero.center_x, self.hero.center_y, dx, dy)
+        self.bullet_list.append(bullet)
+        self.shoot_timer = SHOOT_DELAY
+
     def on_show(self):
         self.hero.center_x = self.map_pixel_width / 2
         self.hero.center_y = self.map_pixel_height / 2
         self.camera.position = (self.hero.center_x, self.hero.center_y)
 
     def on_update(self, delta_time):
+        if self.shoot_timer > 0:
+            self.shoot_timer -= delta_time
+
         self.physics_engine.update()
-        if not self.hero.has_gun and self.gun_list:
-            picked = arcade.check_for_collision_with_list(self.hero, self.gun_list)
-            if picked:
-                for gun_sprite in picked:
-                    gun_sprite.remove_from_sprite_lists()
-                self.hero.equip_gun()
+
+        if not self.hero.has_gun and not self.gun_picked_up and self.gun_list:
+            for gun in self.gun_list:
+                if arcade.check_for_collision(self.hero, gun):
+                    gun.remove_from_sprite_lists()
+                    self.hero.equip_gun()
+                    self.gun_picked_up = True
+                    break
+
+        for bullet in self.bullet_list[:]:
+            bullet.update(delta_time)
+
+            if arcade.check_for_collision_with_list(bullet, self.wall_list):
+                bullet.remove_from_sprite_lists()
+
         self.hero.update_animation(delta_time)
-        self.hero.update()
+        self.hero.update(delta_time)
         self.center_camera_to_player()
 
     def on_key_press(self, key, modifiers):
@@ -196,6 +293,10 @@ class MyGame(arcade.Window):
             self.hero.change_y = 1
         elif key == arcade.key.S:
             self.hero.change_y = -1
+
+        if key == arcade.key.SPACE and self.shoot_timer <= 0:
+            self.shoot()
+
         self.hero._set_texture_for_direction()
 
     def on_key_release(self, key, modifiers):
@@ -205,12 +306,22 @@ class MyGame(arcade.Window):
             self.hero.change_y = 0
         self.hero._set_texture_for_direction()
 
+    def on_mouse_press(self, x, y, button, modifiers):
+        """Стрельба по ЛКМ"""
+        if button == arcade.MOUSE_BUTTON_LEFT and self.shoot_timer <= 0:
+            self.shoot()
+
     def on_draw(self):
         self.clear()
         self.camera.use()
         self.scene.draw()
-        self.player_list.draw()
 
+        # Рисуем пистолеты на земле (если они еще есть)
+        if not self.gun_picked_up and self.gun_list:
+            self.gun_list.draw()
+
+        self.player_list.draw()
+        self.bullet_list.draw()
 
 def main():
     parser = argparse.ArgumentParser()
