@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 
 SCREEN_WIDTH, SCREEN_HEIGHT = arcade.get_display_size()
 MOVEMENT_SPEED = 5
-TILE_SCALING = 2.0
+TILE_SCALING = 1.0
 TILE_SIZE = 32
 PLAYER_SCALE = 1.4
 CAMERA_SMOOTH = 0.14
@@ -16,7 +16,7 @@ CAMERA_DEADZONE_Y = 90
 
 BULLET_SPEED = 20
 SHOOT_DELAY = 0.3
-BULLET_SCALE = 7
+BULLET_SCALE = 3
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 TEXTURE_ROOT = PROJECT_ROOT / "my_game_Texture"
@@ -346,24 +346,19 @@ class MyGame(arcade.Window):
         self.scene = arcade.Scene.from_tilemap(self.map)
         self.wall_list = self.map.sprite_lists.get("Stop", arcade.SpriteList())
         self.gun_list = self.map.sprite_lists.get("gun", arcade.SpriteList())
-        self.enemy_sprite_list = self.map.sprite_lists.get("enemy", arcade.SpriteList())
+        self.gun_picked_up = False
+        self.map_pixel_width = self.map.width * self.map.tile_width * TILE_SCALING
+        self.map_pixel_height = self.map.height * self.map.tile_height * TILE_SCALING
+        self.bullet_list = arcade.SpriteList()
+        self.shoot_timer = 0
         self.camera = arcade.Camera2D(position=(width / 2, height / 2))
+        self.ui_camera = arcade.Camera2D()
         self.hero = Cherecters(is_hero=True)
         self.player_list = arcade.SpriteList()
         self.player_list.append(self.hero)
         self.enemies = arcade.SpriteList()
         self.physics_engine = arcade.PhysicsEngineSimple(self.hero, self.wall_list)
         self.map_path = map_path
-        self.map_pixel_width = self.map.width * self.map.tile_width * TILE_SCALING
-        self.map_pixel_height = self.map.height * self.map.tile_height * TILE_SCALING
-        self.bullet_list = arcade.SpriteList()
-        self.shoot_timer = 0
-        self.gun_picked_up = False
-        self.is_transitioning = False
-        self.transition_alpha = 0
-        self.transition_target_map = None
-        self.transition_spawn_x = 0
-        self.transition_spawn_y = 0
 
     def center_camera_to_player(self):
         half_w = self.width / 2
@@ -467,28 +462,38 @@ class MyGame(arcade.Window):
         for enemy in self.enemies:
             enemy.update(delta_time)
 
-        if self.is_transitioning:
-            self._update_transition(delta_time)
-        else:
-            self._check_level_transition()
+        self._check_level_transition()
 
         self.center_camera_to_player()
 
-    def _update_transition(self, delta_time):
-        self.transition_alpha += delta_time * 2
-        if self.transition_alpha >= 1:
-            if self.map_path != self.transition_target_map:
-                self.map_path = self.transition_target_map
-                if self.transition_target_map:
-                    self._load_map(self.transition_target_map)
-            self.transition_alpha = 2
-        if self.transition_alpha >= 2:
-            self.transition_alpha -= delta_time * 2
-            if self.transition_alpha <= 1:
-                self.transition_alpha = 1
-        if self.transition_alpha >= 1:
-            self.is_transitioning = False
-            self.transition_alpha = 0
+    def _draw_minimap(self):
+        minimap_width = 150
+        minimap_height = 100
+        margin = 20
+        minimap_x = margin
+        minimap_y = self.height - minimap_height - margin
+
+        scale_x = minimap_width / max(self.map_pixel_width, 1)
+        scale_y = minimap_height / max(self.map_pixel_height, 1)
+
+        arcade.draw_lbwh_rectangle_filled(minimap_x, minimap_y, minimap_width, minimap_height, (0, 0, 0, 180))
+        arcade.draw_lbwh_rectangle_outline(minimap_x, minimap_y, minimap_width, minimap_height, (255, 255, 255, 200), 2)
+
+        for wall in self.wall_list:
+            wx = minimap_x + wall.center_x * scale_x
+            wy = minimap_y + wall.center_y * scale_y
+            ww = max(wall.width * scale_x, 1)
+            wh = max(wall.height * scale_y, 1)
+            arcade.draw_lbwh_rectangle_filled(wx, wy, ww, wh, (100, 100, 100, 150))
+
+        for gun in self.gun_list:
+            gx = minimap_x + gun.center_x * scale_x
+            gy = minimap_y + gun.center_y * scale_y
+            arcade.draw_circle_filled(gx, gy, 5, (255, 255, 0))
+
+        hx = minimap_x + self.hero.center_x * scale_x
+        hy = minimap_y + self.hero.center_y * scale_y
+        arcade.draw_circle_filled(hx, hy, 4, (0, 255, 0))
 
     def _check_level_transition(self):
         current_map = self.map_path
@@ -521,20 +526,12 @@ class MyGame(arcade.Window):
                 spawn_x = self.map_pixel_width / 2
             if spawn_y is None:
                 spawn_y = self.map_pixel_height / 2
-            self.start_level_transition(next_map, spawn_x, spawn_y)
-
-    def start_level_transition(self, map_path: str, spawn_x: float, spawn_y: float):
-        self.transition_target_map = map_path
-        self.transition_spawn_x = spawn_x
-        self.transition_spawn_y = spawn_y
-        self.is_transitioning = True
-        self.transition_alpha = 0
-        self.hero.change_x = 0
-        self.hero.change_y = 0
+            self.map_path = next_map
+            self.hero.center_x = spawn_x
+            self.hero.center_y = spawn_y
+            self._load_map(next_map)
 
     def _load_map(self, map_path: str):
-        spawn_x = self.transition_spawn_x
-        spawn_y = self.transition_spawn_y
         layer_options = load_layer_options_from_tmx(map_path)
         self.map = arcade.load_tilemap(map_path, TILE_SCALING, layer_options)
         self.scene = arcade.Scene.from_tilemap(self.map)
@@ -543,10 +540,9 @@ class MyGame(arcade.Window):
         self.map_pixel_width = self.map.width * self.map.tile_width * TILE_SCALING
         self.map_pixel_height = self.map.height * self.map.tile_height * TILE_SCALING
         self.physics_engine = arcade.PhysicsEngineSimple(self.hero, self.wall_list)
-        self.hero.center_x = spawn_x if spawn_x is not None else self.map_pixel_width / 2
-        self.hero.center_y = spawn_y if spawn_y is not None else self.map_pixel_height / 2
         self.hero.change_x = 0
         self.hero.change_y = 0
+        self.gun_picked_up = False
 
     def on_key_press(self, symbol, modifiers):
         if symbol == arcade.key.A:
@@ -558,7 +554,7 @@ class MyGame(arcade.Window):
         elif symbol == arcade.key.S:
             self.hero.change_y = -1
 
-        if symbol == arcade.key.SPACE and self.shoot_timer <= 0:
+        if symbol == arcade.key.SPACE and self.hero.has_gun and self.shoot_timer <= 0:
             self.shoot()
 
         self.hero._set_texture_for_direction()
@@ -586,17 +582,8 @@ class MyGame(arcade.Window):
         self.bullet_list.draw()
         self.enemies.draw()
 
-        if self.transition_alpha > 0 and self.transition_alpha <= 2:
-            alpha = 0
-            if self.transition_alpha < 1:
-                alpha = int((1 - self.transition_alpha) * 255)
-            else:
-                alpha = int((self.transition_alpha - 1) * 255)
-            alpha = max(0, min(255, alpha))
-            arcade.draw_lrbt_rectangle_filled(
-                0, self.width, 0, self.height,
-                (0, 0, 0, alpha)
-            )
+        self.ui_camera.use()
+        self._draw_minimap()
 
 
 def main():
