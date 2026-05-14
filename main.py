@@ -27,10 +27,10 @@ MAP_PATH = TEXTURE_ROOT / "Location" / "Cave.tmx"
 
 LEVEL_CONNECTIONS = {
     str(TEXTURE_ROOT / "Location" / "Cave.tmx"): {
-        "left": {"map": str(TEXTURE_ROOT / "Location" / "Laibrery.tmx"), "spawn_x": 100, "spawn_y": None},
+        "left": {"map": str(TEXTURE_ROOT / "Location" / "Laibrery.tmx"), "spawn_x": "right_edge", "spawn_y": None},
     },
     str(TEXTURE_ROOT / "Location" / "Laibrery.tmx"): {
-        "right": {"map": str(TEXTURE_ROOT / "Location" / "Cave.tmx"), "spawn_x": 100, "spawn_y": None},
+        "right": {"map": str(TEXTURE_ROOT / "Location" / "Cave.tmx"), "spawn_x": "left_edge", "spawn_y": None},
     },
 }
 
@@ -476,12 +476,11 @@ class MyGame(arcade.Window):
 
     def _update_transition(self, delta_time):
         self.transition_alpha += delta_time * 2
-        if self.transition_alpha >= 1 and self.map_path != self.transition_target_map:
-            self.map_path = self.transition_target_map
-            self.hero.center_x = self.transition_spawn_x
-            self.hero.center_y = self.transition_spawn_y
-            if self.transition_target_map:
-                self._load_map(self.transition_target_map)
+        if self.transition_alpha >= 1:
+            if self.map_path != self.transition_target_map:
+                self.map_path = self.transition_target_map
+                if self.transition_target_map:
+                    self._load_map(self.transition_target_map)
             self.transition_alpha = 2
         if self.transition_alpha >= 2:
             self.transition_alpha -= delta_time * 2
@@ -512,9 +511,13 @@ class MyGame(arcade.Window):
         transition = connections.get(direction)
         if transition:
             next_map = transition["map"]
-            spawn_x = transition["spawn_x"]
-            spawn_y = transition["spawn_y"]
-            if spawn_x is None:
+            spawn_x = transition.get("spawn_x")
+            spawn_y = transition.get("spawn_y")
+            if spawn_x == "left_edge":
+                spawn_x = 100
+            elif spawn_x == "right_edge":
+                spawn_x = self.map_pixel_width - 100
+            elif spawn_x is None:
                 spawn_x = self.map_pixel_width / 2
             if spawn_y is None:
                 spawn_y = self.map_pixel_height / 2
@@ -530,6 +533,8 @@ class MyGame(arcade.Window):
         self.hero.change_y = 0
 
     def _load_map(self, map_path: str):
+        spawn_x = self.transition_spawn_x
+        spawn_y = self.transition_spawn_y
         layer_options = load_layer_options_from_tmx(map_path)
         self.map = arcade.load_tilemap(map_path, TILE_SCALING, layer_options)
         self.scene = arcade.Scene.from_tilemap(self.map)
@@ -538,8 +543,8 @@ class MyGame(arcade.Window):
         self.map_pixel_width = self.map.width * self.map.tile_width * TILE_SCALING
         self.map_pixel_height = self.map.height * self.map.tile_height * TILE_SCALING
         self.physics_engine = arcade.PhysicsEngineSimple(self.hero, self.wall_list)
-        self.hero.center_x = self.map_pixel_width / 2
-        self.hero.center_y = self.map_pixel_height / 2
+        self.hero.center_x = spawn_x if spawn_x is not None else self.map_pixel_width / 2
+        self.hero.center_y = spawn_y if spawn_y is not None else self.map_pixel_height / 2
         self.hero.change_x = 0
         self.hero.change_y = 0
 
