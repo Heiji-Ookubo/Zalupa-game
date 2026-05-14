@@ -2,8 +2,8 @@ import arcade
 from PIL import ImageOps
 from pathlib import Path
 import argparse
+from typing import Optional
 import xml.etree.ElementTree as ET
-import math
 
 SCREEN_WIDTH, SCREEN_HEIGHT = arcade.get_display_size()
 MOVEMENT_SPEED = 5
@@ -22,12 +22,108 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 TEXTURE_ROOT = PROJECT_ROOT / "my_game_Texture"
 if not TEXTURE_ROOT.exists():
     TEXTURE_ROOT = PROJECT_ROOT / "Valina_game_Texture"
-BASE_PATH = TEXTURE_ROOT / "hero"
-MAP_PATH = TEXTURE_ROOT / "Location/Cave.tmx"
+
+MAP_PATH = TEXTURE_ROOT / "Location" / "Cave.tmx"
+
+LEVEL_CONNECTIONS = {
+    str(TEXTURE_ROOT / "Location" / "Cave.tmx"): {
+        "left": {"map": str(TEXTURE_ROOT / "Location" / "Laibrery.tmx"), "spawn_x": 100, "spawn_y": None},
+    },
+    str(TEXTURE_ROOT / "Location" / "Laibrery.tmx"): {
+        "right": {"map": str(TEXTURE_ROOT / "Location" / "Cave.tmx"), "spawn_x": 100, "spawn_y": None},
+    },
+}
+
 DEFAULT_MAP_LAYER_OPTIONS = {
     "Flors": {"use_spatial_hash": True},
     "Stop": {"use_spatial_hash": True},
 }
+
+HERO_PATH = TEXTURE_ROOT / "hero"
+ENEMY_PATH = TEXTURE_ROOT / "enemy"
+GUN_PATH = TEXTURE_ROOT / "gun"
+BULLET_PATH = GUN_PATH / "bullet"
+
+HERO_ANIMATIONS_NEW = {
+    "forward": "forward",
+    "back": "back",
+    "left": "left",
+    "right": "right",
+    "no_move_forward": "no_move_forward",
+    "no_move_back": "no_move_back",
+    "no_move_right": "no_move_right",
+    "no_move_left": "no_mowe_left",
+    "with_gun_forward": "with_gun_forward",
+    "with_gun_back": "with_gun_back",
+    "with_gun_right": "with_gun_right",
+    "with_gun_left": "with_gun_left",
+    "with_gun_no_move_forward": "with_gun_no_move_forward",
+    "with_gun_no_move_back": "with_gun_no_move_back",
+    "with_gun_no_move_right": "with_gun_no_move_right",
+    "with_gun_no_move_left": "with_gun_no_move_left",
+}
+
+HERO_ANIMATIONS_OLD = {
+    "forward": "forward",
+    "back": "back",
+    "left": "left",
+    "right": "right",
+    "no_move_forward": "no_move_forward",
+    "no_move_back": "no_move_back",
+    "no_move_right": "no_move_right",
+    "no_move_left": "left",
+    "with_gun_forward": "with_gun_forward",
+    "with_gun_back": "with_gun_back",
+    "with_gun_right": "with_gun_right",
+    "with_gun_left": "with_gun_left",
+    "with_gun_no_move_forward": "with_gun_forward",
+    "with_gun_no_move_back": "with_gun_back",
+    "with_gun_no_move_right": "with_gun_right",
+    "with_gun_no_move_left": "with_gun_left",
+}
+
+ENEMY_ANIMATIONS = {
+    "no_move_forward": "no_move_forward",
+    "no_move_back": "no_move_back",
+    "no_move_right": "no_move_right",
+    "no_move_left": "no_move_left",
+    "atack_forward": "atack_forward",
+    "atack_back": "atack_back",
+    "atack_right": "atack_right",
+    "atack_left": "atack_left",
+}
+
+
+def load_animations(base_path: Path, animation_map: dict) -> dict:
+    animations = {}
+    for key, folder_name in animation_map.items():
+        anim_path = base_path / folder_name
+        frames = []
+        if anim_path.exists():
+            png_files = sorted(
+                anim_path.glob("*.png"),
+                key=lambda x: int(x.stem) if x.stem.isdigit() else 0
+            )
+            frames = [str(f) for f in png_files if f.name != "document.png"]
+        animations[key] = frames
+    return animations
+
+
+def get_animation_map():
+    if (HERO_PATH / "no_mowe_left").exists():
+        return HERO_ANIMATIONS_NEW
+    return HERO_ANIMATIONS_OLD
+
+
+def load_layer_options_from_tmx(map_path: str) -> dict:
+    tree = ET.parse(map_path)
+    root = tree.getroot()
+    options = {}
+    for layer in root.findall("layer"):
+        layer_name = layer.get("name")
+        if layer_name:
+            options[layer_name] = {"use_spatial_hash": layer_name == "Stop"}
+    return options or DEFAULT_MAP_LAYER_OPTIONS.copy()
 
 
 class Bullet(arcade.Sprite):
@@ -45,27 +141,34 @@ class Bullet(arcade.Sprite):
         self.load_bullet_animation()
 
     def load_bullet_animation(self):
-        """Загрузка анимации пули из папки героя"""
-        try:
-            bullet_frames = []
-            bullet_path = BASE_PATH / "bullet"
-            if bullet_path.exists():
-                for i in range(1, 5):
-                    frame_path = bullet_path / f"{i}.png"
-                    if frame_path.exists():
-                        frame = arcade.load_texture(str(frame_path))
-                        bullet_frames.append(frame)
+        bullet_frames = []
+        if BULLET_PATH.exists():
+            png_files = sorted(
+                BULLET_PATH.glob("*.png"),
+                key=lambda x: int(x.stem) if x.stem.isdigit() else 0
+            )
+            bullet_frames = [arcade.load_texture(str(f)) for f in png_files if f.name != "document.png"]
+
+        if bullet_frames:
+            self.texture = bullet_frames[0]
+            self.frames = bullet_frames
+        else:
+            fallback = HERO_PATH / "bullet"
+            if fallback.exists():
+                png_files = sorted(
+                    fallback.glob("*.png"),
+                    key=lambda x: int(x.stem) if x.stem.isdigit() else 0
+                )
+                bullet_frames = [arcade.load_texture(str(f)) for f in png_files if f.name != "document.png"]
                 if bullet_frames:
                     self.texture = bullet_frames[0]
                     self.frames = bullet_frames
                     return
-        except:
-            pass
-        self.texture = arcade.make_circle_texture(8, (255, 255, 0))
-        self.frames = [self.texture]
+
+            self.texture = arcade.make_circle_texture(8, (255, 255, 0, 255))
+            self.frames = [self.texture]
 
     def update_animation(self, delta_time):
-        """Обновление анимации пули"""
         if hasattr(self, 'frames') and len(self.frames) > 1:
             self.frame_timer += delta_time
             if self.frame_timer >= self.frame_duration:
@@ -78,24 +181,12 @@ class Bullet(arcade.Sprite):
         self.center_y += self.change_y
         self.lifetime += delta_time
         self.update_animation(delta_time)
-
         if self.lifetime > 1.2:
             self.remove_from_sprite_lists()
 
 
-def load_layer_options_from_tmx(map_path: str) -> dict[str, dict[str, bool]]:
-    tree = ET.parse(map_path)
-    root = tree.getroot()
-    options = {}
-    for layer in root.findall("layer"):
-        layer_name = layer.get("name")
-        if layer_name:
-            options[layer_name] = {"use_spatial_hash": layer_name == "Stop"}
-    return options or DEFAULT_MAP_LAYER_OPTIONS.copy()
-
-
 class Cherecters(arcade.Sprite):
-    def __init__(self):
+    def __init__(self, is_hero=True):
         super().__init__()
         self.change_x = 0
         self.change_y = 0
@@ -105,35 +196,59 @@ class Cherecters(arcade.Sprite):
         self.texture_scale = PLAYER_SCALE
         self.animations = {}
         self.has_gun = False
+        self.is_hero = is_hero
         self._setup_animations()
 
     def _setup_animations(self):
-        self.animations = {
-            "forward": [str(BASE_PATH / "forward" / f"{i}.png") for i in range(1, 5)],
-            "back": [str(BASE_PATH / "back" / f"{i}.png") for i in range(1, 5)],
-            "right": [str(BASE_PATH / "right" / f"{i}.png") for i in range(1, 5)],
-            "no_move_forward": [str(BASE_PATH / "no_move_forward" / f"{i}.png") for i in range(1, 5)],
-            "no_move_back": [str(BASE_PATH / "no_move_back" / f"{i}.png") for i in range(1, 5)],
-            "no_move_right": [str(BASE_PATH / "no_move_right" / f"{i}.png") for i in range(1, 5)],
-            "with_gun_forward": [str(BASE_PATH / "with_gun_forward" / f"{i}.png") for i in range(1, 5)],
-            "with_gun_back": [str(BASE_PATH / "with_gun_back" / f"{i}.png") for i in range(1, 5)],
-            "with_gun_right": [str(BASE_PATH / "with_gun_right" / f"{i}.png") for i in range(1, 5)],
-            "with_gun_left": [str(BASE_PATH / "with_gun_left" / f"{i}.png") for i in range(1, 5)],
-        }
-        self.texture = arcade.load_texture(self.animations["no_move_forward"][0])
+        self.animations = {}
+        if self.is_hero:
+            anim_map = get_animation_map()
+            self.animations = load_animations(HERO_PATH, anim_map)
+        else:
+            self.animations = load_animations(ENEMY_PATH, ENEMY_ANIMATIONS)
+
+        if self.animations:
+            available = list(self.animations.keys())
+            fallback_key = available[0] if available else None
+            first_anim = self.animations.get("no_move_forward") or self.animations.get("no_move_back") or (
+                self.animations.get(fallback_key) if fallback_key else None
+            )
+            if first_anim:
+                self.texture = arcade.load_texture(first_anim[0])
+            else:
+                self.texture = arcade.make_circle_texture(32, (100, 100, 255, 255))
+        else:
+            self.texture = arcade.make_circle_texture(32, (100, 100, 255, 255))
         self.scale = self.texture_scale
 
     def equip_gun(self):
         self.has_gun = True
         self.cur_texture = 0
+        anim_map = get_animation_map()
+        self.animations = load_animations(HERO_PATH, anim_map)
         self._set_texture_for_direction()
 
     def update_animation(self, delta_time: float = 0):
         self.texture_timer += delta_time
         if self.texture_timer >= 0.15:
             self.texture_timer = 0
-            self.cur_texture = (self.cur_texture + 1) % 4
+            anim_key = self._get_animation_key()
+            anim = self.animations.get(anim_key)
+            frame_count = len(anim) if anim else 4
+            self.cur_texture = (self.cur_texture + 1) % frame_count
             self._set_texture_for_direction()
+
+    def _get_animation_key(self):
+        is_moving = self.change_x != 0 or self.change_y != 0
+        base_dir = self.facing_direction.replace("no_move_", "")
+
+        if self.has_gun:
+            if is_moving:
+                return f"with_gun_{base_dir}"
+            else:
+                return f"with_gun_no_move_{base_dir}"
+        else:
+            return self.facing_direction
 
     def _set_texture_for_direction(self):
         is_moving = self.change_x != 0 or self.change_y != 0
@@ -151,37 +266,76 @@ class Cherecters(arcade.Sprite):
             if not self.facing_direction.startswith("no_move_"):
                 self.facing_direction = "no_move_" + self.facing_direction
 
-        flip_x = False
-        if self.facing_direction.startswith("no_move_"):
-            if self.facing_direction == "no_move_left":
-                base_direction = "no_move_right"
-                flip_x = True
-            else:
-                base_direction = self.facing_direction
-        elif self.has_gun:
-            if self.facing_direction == "left":
-                base_direction = "with_gun_left"
-            elif self.facing_direction == "right":
-                base_direction = "with_gun_right"
-            elif self.facing_direction == "forward":
-                base_direction = "with_gun_forward"
-            else:
-                base_direction = "with_gun_back"
-        elif self.facing_direction == "left":
-            base_direction = "right"
-            flip_x = True
-        else:
-            base_direction = self.facing_direction
+        base_dir = self.facing_direction.replace("no_move_", "")
 
-        if flip_x:
-            image = ImageOps.mirror(arcade.load_image(self.animations[base_direction][self.cur_texture]))
+        if self.has_gun:
+            if is_moving:
+                anim_key = f"with_gun_{base_dir}"
+            else:
+                anim_key = f"with_gun_no_move_{base_dir}"
         else:
-            image = arcade.load_image(self.animations[base_direction][self.cur_texture])
+            anim_key = self.facing_direction
+
+        if anim_key not in self.animations:
+            if is_moving:
+                anim_key = base_dir
+            else:
+                anim_key = f"no_move_{base_dir}"
+
+        if anim_key not in self.animations:
+            available = [k for k in self.animations.keys() if self.animations[k]]
+            if not available:
+                self.texture = arcade.make_circle_texture(32, (100, 100, 255, 255))
+                return
+            anim_key = available[0]
+
+        frames = self.animations[anim_key]
+        if not frames:
+            self.texture = arcade.make_circle_texture(32, (100, 100, 255, 255))
+            return
+
+        frame_path = frames[self.cur_texture % len(frames)]
+        image = arcade.load_image(frame_path)
         self.texture = arcade.Texture(image)
 
     def update(self, delta_time: float = 0):
         self.center_x += self.change_x * MOVEMENT_SPEED
         self.center_y += self.change_y * MOVEMENT_SPEED
+
+
+class Enemy(Cherecters):
+    def __init__(self):
+        super().__init__(is_hero=False)
+        self.health = 100
+        self.attack_timer = 0
+        self.attack_cooldown = 2.0
+        self.is_attacking = False
+        self.attack_direction = None
+
+    def update(self, delta_time: float = 0):
+        super().update(delta_time)
+        if self.attack_timer > 0:
+            self.attack_timer -= delta_time
+            if self.attack_timer <= 0:
+                self.is_attacking = False
+                self._set_texture_for_direction()
+
+    def start_attack(self, direction):
+        self.is_attacking = True
+        self.attack_timer = 0.5
+        self.attack_direction = direction
+
+        if direction == "forward":
+            self.facing_direction = "atack_forward"
+        elif direction == "back":
+            self.facing_direction = "atack_back"
+        elif direction == "right":
+            self.facing_direction = "atack_right"
+        elif direction == "left":
+            self.facing_direction = "atack_left"
+
+        self.cur_texture = 0
+        self._set_texture_for_direction()
 
 
 class MyGame(arcade.Window):
@@ -192,16 +346,24 @@ class MyGame(arcade.Window):
         self.scene = arcade.Scene.from_tilemap(self.map)
         self.wall_list = self.map.sprite_lists.get("Stop", arcade.SpriteList())
         self.gun_list = self.map.sprite_lists.get("gun", arcade.SpriteList())
+        self.enemy_sprite_list = self.map.sprite_lists.get("enemy", arcade.SpriteList())
         self.camera = arcade.Camera2D(position=(width / 2, height / 2))
-        self.hero = Cherecters()
+        self.hero = Cherecters(is_hero=True)
         self.player_list = arcade.SpriteList()
         self.player_list.append(self.hero)
+        self.enemies = arcade.SpriteList()
         self.physics_engine = arcade.PhysicsEngineSimple(self.hero, self.wall_list)
+        self.map_path = map_path
         self.map_pixel_width = self.map.width * self.map.tile_width * TILE_SCALING
         self.map_pixel_height = self.map.height * self.map.tile_height * TILE_SCALING
         self.bullet_list = arcade.SpriteList()
         self.shoot_timer = 0
         self.gun_picked_up = False
+        self.is_transitioning = False
+        self.transition_alpha = 0
+        self.transition_target_map = None
+        self.transition_spawn_x = 0
+        self.transition_spawn_y = 0
 
     def center_camera_to_player(self):
         half_w = self.width / 2
@@ -230,15 +392,12 @@ class MyGame(arcade.Window):
         )
 
     def shoot(self):
-        """Метод для стрельбы"""
         if not self.hero.has_gun or self.shoot_timer > 0:
             return
 
         dx = 0
         dy = 0
-
         facing = self.hero.facing_direction
-
         if facing.startswith("no_move_"):
             facing = facing.replace("no_move_", "")
 
@@ -260,6 +419,21 @@ class MyGame(arcade.Window):
         self.hero.center_y = self.map_pixel_height / 2
         self.camera.position = (self.hero.center_x, self.hero.center_y)
 
+    def load_level(self, map_path: str, spawn_x: Optional[float] = None, spawn_y: Optional[float] = None):
+        self.map_path = map_path
+        layer_options = load_layer_options_from_tmx(map_path)
+        self.map = arcade.load_tilemap(map_path, TILE_SCALING, layer_options)
+        self.scene = arcade.Scene.from_tilemap(self.map)
+        self.wall_list = self.map.sprite_lists.get("Stop", arcade.SpriteList())
+        self.gun_list = self.map.sprite_lists.get("gun", arcade.SpriteList())
+        self.map_pixel_width = self.map.width * self.map.tile_width * TILE_SCALING
+        self.map_pixel_height = self.map.height * self.map.tile_height * TILE_SCALING
+        self.physics_engine = arcade.PhysicsEngineSimple(self.hero, self.wall_list)
+        self.hero.center_x = spawn_x if spawn_x is not None else self.map_pixel_width / 2
+        self.hero.center_y = spawn_y if spawn_y is not None else self.map_pixel_height / 2
+        self.hero.change_x = 0
+        self.hero.change_y = 0
+
     def on_update(self, delta_time):
         if self.shoot_timer > 0:
             self.shoot_timer -= delta_time
@@ -274,40 +448,124 @@ class MyGame(arcade.Window):
                     self.gun_picked_up = True
                     break
 
-        for bullet in self.bullet_list[:]:
+        for bullet in list(self.bullet_list):
             bullet.update(delta_time)
-
             if arcade.check_for_collision_with_list(bullet, self.wall_list):
                 bullet.remove_from_sprite_lists()
 
+            for enemy in list(self.enemies):
+                if arcade.check_for_collision(bullet, enemy):
+                    bullet.remove_from_sprite_lists()
+                    enemy.health -= 25
+                    if enemy.health <= 0:
+                        enemy.remove_from_sprite_lists()
+                    break
+
         self.hero.update_animation(delta_time)
         self.hero.update(delta_time)
+
+        for enemy in self.enemies:
+            enemy.update(delta_time)
+
+        if self.is_transitioning:
+            self._update_transition(delta_time)
+        else:
+            self._check_level_transition()
+
         self.center_camera_to_player()
 
-    def on_key_press(self, key, modifiers):
-        if key == arcade.key.A:
+    def _update_transition(self, delta_time):
+        self.transition_alpha += delta_time * 2
+        if self.transition_alpha >= 1 and self.map_path != self.transition_target_map:
+            self.map_path = self.transition_target_map
+            self.hero.center_x = self.transition_spawn_x
+            self.hero.center_y = self.transition_spawn_y
+            if self.transition_target_map:
+                self._load_map(self.transition_target_map)
+            self.transition_alpha = 2
+        if self.transition_alpha >= 2:
+            self.transition_alpha -= delta_time * 2
+            if self.transition_alpha <= 1:
+                self.transition_alpha = 1
+        if self.transition_alpha >= 1:
+            self.is_transitioning = False
+            self.transition_alpha = 0
+
+    def _check_level_transition(self):
+        current_map = self.map_path
+        connections = LEVEL_CONNECTIONS.get(current_map, {})
+
+        if not connections:
+            return
+
+        if self.hero.center_x < 0:
+            direction = "left"
+        elif self.hero.center_x > self.map_pixel_width:
+            direction = "right"
+        elif self.hero.center_y < 0:
+            direction = "down"
+        elif self.hero.center_y > self.map_pixel_height:
+            direction = "up"
+        else:
+            return
+
+        transition = connections.get(direction)
+        if transition:
+            next_map = transition["map"]
+            spawn_x = transition["spawn_x"]
+            spawn_y = transition["spawn_y"]
+            if spawn_x is None:
+                spawn_x = self.map_pixel_width / 2
+            if spawn_y is None:
+                spawn_y = self.map_pixel_height / 2
+            self.start_level_transition(next_map, spawn_x, spawn_y)
+
+    def start_level_transition(self, map_path: str, spawn_x: float, spawn_y: float):
+        self.transition_target_map = map_path
+        self.transition_spawn_x = spawn_x
+        self.transition_spawn_y = spawn_y
+        self.is_transitioning = True
+        self.transition_alpha = 0
+        self.hero.change_x = 0
+        self.hero.change_y = 0
+
+    def _load_map(self, map_path: str):
+        layer_options = load_layer_options_from_tmx(map_path)
+        self.map = arcade.load_tilemap(map_path, TILE_SCALING, layer_options)
+        self.scene = arcade.Scene.from_tilemap(self.map)
+        self.wall_list = self.map.sprite_lists.get("Stop", arcade.SpriteList())
+        self.gun_list = self.map.sprite_lists.get("gun", arcade.SpriteList())
+        self.map_pixel_width = self.map.width * self.map.tile_width * TILE_SCALING
+        self.map_pixel_height = self.map.height * self.map.tile_height * TILE_SCALING
+        self.physics_engine = arcade.PhysicsEngineSimple(self.hero, self.wall_list)
+        self.hero.center_x = self.map_pixel_width / 2
+        self.hero.center_y = self.map_pixel_height / 2
+        self.hero.change_x = 0
+        self.hero.change_y = 0
+
+    def on_key_press(self, symbol, modifiers):
+        if symbol == arcade.key.A:
             self.hero.change_x = -1
-        elif key == arcade.key.D:
+        elif symbol == arcade.key.D:
             self.hero.change_x = 1
-        elif key == arcade.key.W:
+        elif symbol == arcade.key.W:
             self.hero.change_y = 1
-        elif key == arcade.key.S:
+        elif symbol == arcade.key.S:
             self.hero.change_y = -1
 
-        if key == arcade.key.SPACE and self.shoot_timer <= 0:
+        if symbol == arcade.key.SPACE and self.shoot_timer <= 0:
             self.shoot()
 
         self.hero._set_texture_for_direction()
 
-    def on_key_release(self, key, modifiers):
-        if key == arcade.key.A or key == arcade.key.D:
+    def on_key_release(self, symbol, modifiers):
+        if symbol == arcade.key.A or symbol == arcade.key.D:
             self.hero.change_x = 0
-        elif key == arcade.key.W or key == arcade.key.S:
+        elif symbol == arcade.key.W or symbol == arcade.key.S:
             self.hero.change_y = 0
         self.hero._set_texture_for_direction()
 
     def on_mouse_press(self, x, y, button, modifiers):
-        """Стрельба по ЛКМ"""
         if button == arcade.MOUSE_BUTTON_LEFT and self.shoot_timer <= 0:
             self.shoot()
 
@@ -316,19 +574,29 @@ class MyGame(arcade.Window):
         self.camera.use()
         self.scene.draw()
 
-        # Рисуем пистолеты на земле (если они еще есть)
         if not self.gun_picked_up and self.gun_list:
             self.gun_list.draw()
 
         self.player_list.draw()
         self.bullet_list.draw()
+        self.enemies.draw()
+
+        if self.transition_alpha > 0 and self.transition_alpha <= 2:
+            alpha = 0
+            if self.transition_alpha < 1:
+                alpha = int((1 - self.transition_alpha) * 255)
+            else:
+                alpha = int((self.transition_alpha - 1) * 255)
+            alpha = max(0, min(255, alpha))
+            arcade.draw_lrbt_rectangle_filled(
+                0, self.width, 0, self.height,
+                (0, 0, 0, alpha)
+            )
+
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--map",
-        default=MAP_PATH,
-    )
+    parser.add_argument("--map", default=MAP_PATH)
     args = parser.parse_args()
     map_path = Path(args.map)
     if not map_path.is_absolute():
@@ -336,7 +604,7 @@ def main():
     if not map_path.exists():
         raise FileNotFoundError(f"Не найден файл карты: {map_path}")
 
-    window = MyGame(SCREEN_WIDTH, SCREEN_HEIGHT, "Тимофей, ты валыну то убери", str(map_path))
+    window = MyGame(SCREEN_WIDTH, SCREEN_HEIGHT, "Игра", str(map_path))
     arcade.run()
 
 
