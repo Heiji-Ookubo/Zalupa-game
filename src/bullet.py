@@ -1,10 +1,21 @@
 import math
+from pathlib import Path
 import arcade
 
 from constants import (
     BULLET_PATH, BULLET_SPEED, BULLET_SCALE, HERO_PATH,
     SPIRIT_BOL_PATH, ENEMY_BULLET_SPEED, ENEMY_BULLET_DAMAGE, ENEMY_BULLET_LIFETIME,
 )
+
+
+def _collect_pngs(path: Path):
+    if not path.exists():
+        return []
+    png_files = sorted(
+        path.glob("*.png"),
+        key=lambda x: int(x.stem) if x.stem.isdigit() else 0
+    )
+    return [arcade.load_texture(str(f)) for f in png_files if f.name != "document.png"]
 
 
 class Bullet(arcade.Sprite):
@@ -22,32 +33,12 @@ class Bullet(arcade.Sprite):
         self.load_bullet_animation()
 
     def load_bullet_animation(self):
-        bullet_frames = []
-        if BULLET_PATH.exists():
-            png_files = sorted(
-                BULLET_PATH.glob("*.png"),
-                key=lambda x: int(x.stem) if x.stem.isdigit() else 0
-            )
-            bullet_frames = [arcade.load_texture(str(f)) for f in png_files if f.name != "document.png"]
-
-        if bullet_frames:
-            self.texture = bullet_frames[0]
-            self.frames = bullet_frames
-        else:
-            fallback = HERO_PATH / "bullet"
-            if fallback.exists():
-                png_files = sorted(
-                    fallback.glob("*.png"),
-                    key=lambda x: int(x.stem) if x.stem.isdigit() else 0
-                )
-                bullet_frames = [arcade.load_texture(str(f)) for f in png_files if f.name != "document.png"]
-                if bullet_frames:
-                    self.texture = bullet_frames[0]
-                    self.frames = bullet_frames
-                    return
-
-            self.texture = arcade.make_circle_texture(8, (255, 255, 0, 255))
-            self.frames = [self.texture]
+        frames = _collect_pngs(BULLET_PATH)
+        if not frames:
+            frames = _collect_pngs(HERO_PATH / "bullet")
+        if frames:
+            self.texture = frames[0]
+            self.frames = frames
 
     def update_animation(self, delta_time):
         if hasattr(self, 'frames') and len(self.frames) > 1:
@@ -88,20 +79,10 @@ class EnemyBullet(arcade.Sprite):
         self.load_textures()
 
     def load_textures(self):
-        frames = []
-        if SPIRIT_BOL_PATH.exists():
-            png_files = sorted(
-                SPIRIT_BOL_PATH.glob("*.png"),
-                key=lambda x: int(x.stem) if x.stem.isdigit() else 0
-            )
-            frames = [arcade.load_texture(str(f)) for f in png_files if f.name != "document.png"]
-
+        frames = _collect_pngs(SPIRIT_BOL_PATH)
         if frames:
             self.texture = frames[0]
             self.frames = frames
-        else:
-            self.texture = arcade.make_circle_texture(6, (150, 0, 255, 255))
-            self.frames = [self.texture]
         self.scale = 2
 
     def update_animation(self, delta_time):

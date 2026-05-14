@@ -51,7 +51,7 @@ SPIRIT_BOL_PATH = ENEMY_PATH / "spirit_bol"
 GUN_PATH = TEXTURE_ROOT / "gun"
 BULLET_PATH = GUN_PATH / "bullet"
 
-HERO_ANIMATIONS_NEW = {
+HERO_ANIMATIONS = {
     "forward": "forward",
     "back": "back",
     "left": "left",
@@ -59,7 +59,7 @@ HERO_ANIMATIONS_NEW = {
     "no_move_forward": "no_move_forward",
     "no_move_back": "no_move_back",
     "no_move_right": "no_move_right",
-    "no_move_left": "no_mowe_left",
+    "no_move_left": "no_move_left",
     "with_gun_forward": "with_gun_forward",
     "with_gun_back": "with_gun_back",
     "with_gun_right": "with_gun_right",
@@ -68,25 +68,6 @@ HERO_ANIMATIONS_NEW = {
     "with_gun_no_move_back": "with_gun_no_move_back",
     "with_gun_no_move_right": "with_gun_no_move_right",
     "with_gun_no_move_left": "with_gun_no_move_left",
-}
-
-HERO_ANIMATIONS_OLD = {
-    "forward": "forward",
-    "back": "back",
-    "left": "left",
-    "right": "right",
-    "no_move_forward": "no_move_forward",
-    "no_move_back": "no_move_back",
-    "no_move_right": "no_move_right",
-    "no_move_left": "left",
-    "with_gun_forward": "with_gun_forward",
-    "with_gun_back": "with_gun_back",
-    "with_gun_right": "with_gun_right",
-    "with_gun_left": "with_gun_left",
-    "with_gun_no_move_forward": "with_gun_forward",
-    "with_gun_no_move_back": "with_gun_back",
-    "with_gun_no_move_right": "with_gun_right",
-    "with_gun_no_move_left": "with_gun_left",
 }
 
 ENEMY_ANIMATIONS = {

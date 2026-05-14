@@ -2,11 +2,11 @@ from typing import Optional
 import arcade
 
 from constants import (
-    SHOOT_DELAY, TILE_SCALING, LEVEL_CONNECTIONS, ENEMY_DAMAGE, ENEMY_BULLET_DAMAGE,
+    SHOOT_DELAY, TILE_SCALING, LEVEL_CONNECTIONS, ENEMY_DAMAGE,
     CAMERA_SMOOTH, CAMERA_DEADZONE_X, CAMERA_DEADZONE_Y,
 )
 from characters import Cherecters, Enemy
-from bullet import Bullet, EnemyBullet
+from bullet import Bullet
 from utils import load_layer_options_from_tmx
 
 
@@ -43,19 +43,27 @@ class MyGame(arcade.Window):
         if spawn_y is not None:
             self.hero.center_y = spawn_y
 
+        self._spawn_enemies()
+
+    def _spawn_enemies(self):
         self.enemies.clear()
         self.enemy_bullet_list.clear()
-        enemy_objects = self.map.object_lists.get("enemy", [])
-        for obj in enemy_objects:
-            if isinstance(obj.shape, list) and len(obj.shape) == 4:
-                xs = [p[0] for p in obj.shape]
-                ys = [p[1] for p in obj.shape]
-                enemy = Enemy()
-                enemy.center_x = (min(xs) + max(xs)) / 2
-                enemy.center_y = (min(ys) + max(ys)) / 2
-                enemy.target = self.hero
-                enemy.bullet_list = self.enemy_bullet_list
+        for obj in self.map.object_lists.get("enemy", []):
+            enemy = self._enemy_from_object(obj)
+            if enemy:
                 self.enemies.append(enemy)
+
+    def _enemy_from_object(self, obj):
+        if not isinstance(obj.shape, list) or len(obj.shape) != 4:
+            return None
+        xs = [p[0] for p in obj.shape]
+        ys = [p[1] for p in obj.shape]
+        enemy = Enemy()
+        enemy.center_x = (min(xs) + max(xs)) / 2
+        enemy.center_y = (min(ys) + max(ys)) / 2
+        enemy.target = self.hero
+        enemy.bullet_list = self.enemy_bullet_list
+        return enemy
 
     def center_camera_to_player(self):
         half_w = self.width / 2
@@ -112,35 +120,55 @@ class MyGame(arcade.Window):
         self.camera.position = (self.hero.center_x, self.hero.center_y)
 
     def on_update(self, delta_time):
+        self._update_timers(delta_time)
+        self.physics_engine.update()
+        self._try_pickup_gun()
+        self._update_bullets(delta_time)
+        self._update_hero(delta_time)
+        self._update_enemy_bullets(delta_time)
+        self._update_enemies(delta_time)
+        if self.hero.health <= 0:
+            self.close()
+            return
+        self._check_level_transition()
+        self.center_camera_to_player()
+
+    def _update_timers(self, delta_time):
         if self.shoot_timer > 0:
             self.shoot_timer -= delta_time
 
-        self.physics_engine.update()
+    def _try_pickup_gun(self):
+        if self.hero.has_gun or self.gun_picked_up or not self.gun_list:
+            return
+        for gun in self.gun_list:
+            if arcade.check_for_collision(self.hero, gun):
+                gun.remove_from_sprite_lists()
+                self.hero.equip_gun()
+                self.gun_picked_up = True
+                break
 
-        if not self.hero.has_gun and not self.gun_picked_up and self.gun_list:
-            for gun in self.gun_list:
-                if arcade.check_for_collision(self.hero, gun):
-                    gun.remove_from_sprite_lists()
-                    self.hero.equip_gun()
-                    self.gun_picked_up = True
-                    break
-
+    def _update_bullets(self, delta_time):
         for bullet in list(self.bullet_list):
             bullet.update(delta_time)
             if arcade.check_for_collision_with_list(bullet, self.wall_list):
                 bullet.remove_from_sprite_lists()
+                continue
+            self._check_bullet_hits_enemy(bullet)
 
-            for enemy in list(self.enemies):
-                if arcade.check_for_collision(bullet, enemy):
-                    bullet.remove_from_sprite_lists()
-                    enemy.health -= 25
-                    if enemy.health <= 0:
-                        enemy.remove_from_sprite_lists()
-                    break
+    def _check_bullet_hits_enemy(self, bullet):
+        for enemy in list(self.enemies):
+            if arcade.check_for_collision(bullet, enemy):
+                bullet.remove_from_sprite_lists()
+                enemy.health -= 25
+                if enemy.health <= 0:
+                    enemy.remove_from_sprite_lists()
+                break
 
+    def _update_hero(self, delta_time):
         self.hero.update_animation(delta_time)
         self.hero.update(delta_time)
 
+    def _update_enemy_bullets(self, delta_time):
         for bullet in list(self.enemy_bullet_list):
             bullet.update(delta_time)
             if arcade.check_for_collision_with_list(bullet, self.wall_list):
@@ -150,19 +178,16 @@ class MyGame(arcade.Window):
                 self.hero.health -= bullet.damage
                 bullet.remove_from_sprite_lists()
 
+    def _update_enemies(self, delta_time):
         for enemy in self.enemies:
             enemy.update(delta_time)
             enemy.update_animation(delta_time)
-            if enemy.is_attacking and not enemy.damage_dealt and arcade.check_for_collision(enemy, self.hero):
-                enemy.damage_dealt = True
-                self.hero.health -= ENEMY_DAMAGE
+            self._check_enemy_melee_hit(enemy)
 
-        if self.hero.health <= 0:
-            self.close()
-            return
-
-        self._check_level_transition()
-        self.center_camera_to_player()
+    def _check_enemy_melee_hit(self, enemy):
+        if enemy.is_attacking and not enemy.damage_dealt and arcade.check_for_collision(enemy, self.hero):
+            enemy.damage_dealt = True
+            self.hero.health -= ENEMY_DAMAGE
 
     def _draw_hp(self):
         hp_width = 200
@@ -274,10 +299,6 @@ class MyGame(arcade.Window):
         elif symbol == arcade.key.W or symbol == arcade.key.S:
             self.hero.change_y = 0
         self.hero._set_texture_for_direction()
-
-    def on_mouse_press(self, x, y, button, modifiers):
-        if button == arcade.MOUSE_BUTTON_LEFT and self.shoot_timer <= 0:
-            self.shoot()
 
     def on_draw(self):
         self.clear()

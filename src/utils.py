@@ -1,11 +1,9 @@
 import xml.etree.ElementTree as ET
-from pathlib import Path
-import arcade
 
-from constants import HERO_PATH, HERO_ANIMATIONS_NEW, HERO_ANIMATIONS_OLD, DEFAULT_MAP_LAYER_OPTIONS
+from constants import HERO_ANIMATIONS, DEFAULT_MAP_LAYER_OPTIONS
 
 
-def load_animations(base_path: Path, animation_map: dict) -> dict:
+def load_animations(base_path, animation_map):
     animations = {}
     for key, folder_name in animation_map.items():
         anim_path = base_path / folder_name
@@ -18,12 +16,6 @@ def load_animations(base_path: Path, animation_map: dict) -> dict:
             frames = [str(f) for f in png_files if f.name != "document.png"]
         animations[key] = frames
     return animations
-
-
-def get_animation_map():
-    if (HERO_PATH / "no_mowe_left").exists():
-        return HERO_ANIMATIONS_NEW
-    return HERO_ANIMATIONS_OLD
 
 
 def load_layer_options_from_tmx(map_path: str) -> dict:
